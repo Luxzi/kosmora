@@ -6,4 +6,3 @@ fn main() {
     let example_path: &Path = &std::path::Path::new(".");
     example_path.to_kosmora_inode();
 }
-    
