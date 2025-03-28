@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = ["consumer", "kosmora"]
+
+[profile.dev]
+rpath = false
+panic = "abort"
+lto = "off"
+opt-level = 0
+debug = true
+overflow-checks = false
+incremental = true
+codegen-units = 128
+
+strip = "symbols"
+debug-assertions = true
+
+[profile.release]
+debug-assertions = false
+lto = true
+codegen-units = 1
+panic = "abort"
