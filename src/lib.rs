@@ -1,5 +1,8 @@
 use std::{boxed::Box, fs, io::Seek, path, vec};
-use walkdir::WalkDir;
+use tree::{collect_physical_directory_children, create_kosmora_directory, create_kosmora_file};
+use walkdir::{DirEntry, WalkDir};
+
+mod tree;
 
 #[derive(Debug)]
 pub struct KosmoraVfs {
@@ -18,33 +21,33 @@ struct KosmoraPackage {
     inode_index: KosmoraDirectory,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum KosmoraINodeType {
     File(KosmoraFile),
     Directory(KosmoraDirectory),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KosmoraFileMetadata {
     name: String,
     extension: Option<String>,
     size: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KosmoraFile {
     metadata: KosmoraFileMetadata,
     data: Vec<u8>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KosmoraDirectory {
     name: String,
     parent: Option<Box<KosmoraDirectory>>,
     children: Option<Vec<KosmoraINode>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KosmoraINode {
     inode: KosmoraINodeType,
 }
@@ -65,56 +68,13 @@ impl KosmoraVfs {
 pub trait KosmoraINodeInteroperable {
     fn collect_directory_children(&self) -> Vec<KosmoraINode>;
     fn to_kosmora_inode(&self) -> KosmoraINode;
+    fn to_kosmora_directory(&self) -> KosmoraDirectory;
+    fn to_kosmora_file(&self) -> KosmoraFile;
 }
 
 impl KosmoraINodeInteroperable for std::path::Path {
     fn collect_directory_children(&self) -> Vec<KosmoraINode> {
-        if !self.is_dir() {}
-        dbg!(self);
-
-        let mut inodes: Vec<KosmoraINode> = vec![];
-
-        for entry in WalkDir::new(&self).into_iter().filter_map(|e| e.ok()) {
-            // println!("{}", entry.path().display());
-            let inode: KosmoraINode = match entry.path().is_file() {
-                true => {
-                    let file = KosmoraFile {
-                        metadata: KosmoraFileMetadata {
-                            name: entry.file_name().to_string_lossy().into(),
-                            extension: None,
-                            size: entry.path().metadata().unwrap().len() as usize,
-                        },
-                        data: fs::read(entry.path()).unwrap(),
-                    };
-                    KosmoraINode {
-                        inode: KosmoraINodeType::File(file),
-                    }
-                }
-                false => {
-                    fn read_upwards(path: &path::Path) -> Option<Box<KosmoraDirectory>> { 
-
-                        if let Some(parent) = path.parent() {
-                            println!("{parent:#?}");
-                            return read_upwards(parent)
-                        } else {
-                            return None
-                        }
-                    }
-                    let dir = KosmoraDirectory {
-                        name: entry.file_name().to_string_lossy().into(),
-                        parent: read_upwards(entry.path()),
-                        children: None,
-                    };
-                    KosmoraINode {
-                        inode: KosmoraINodeType::Directory(dir),
-                    }
-                }
-            };
-
-            inodes.push(inode);
-        }
-        
-        inodes
+        tree::collect_physical_directory_children(self)
     }
 
     fn to_kosmora_inode(&self) -> KosmoraINode {
@@ -123,31 +83,36 @@ impl KosmoraINodeInteroperable for std::path::Path {
         }
 
         if self.is_dir() {
-            let dir = KosmoraDirectory {
-                name: self
-                    .components()
-                    .last()
-                    .unwrap()
-                    .as_os_str()
-                    .to_string_lossy()
-                    .into(),
-                parent: None,
-                children: Some(self.collect_directory_children()),
-            };
-            return KosmoraINode {
-                inode: KosmoraINodeType::Directory(dir),
-            };
+            return create_kosmora_directory(self, None, Some(collect_physical_directory_children(self)));
         }
 
         if self.is_file() {
-            let meta = self
-                .metadata()
-                .map_err(|_| panic!("Failed to get metadata"))
-                .ok()
-                .expect("Failed to get metadata");
+            return create_kosmora_file(self, Some(Box::new(self.parent().unwrap().to_kosmora_directory())));
+        }
+        
+        panic!("Unsupported path type");
+    }
 
-            let file_metadata = KosmoraFileMetadata {
-                name: String::from(self.file_name().unwrap().to_str().unwrap().to_string()),
+    fn to_kosmora_directory(&self) -> KosmoraDirectory {
+        if !self.is_dir() {
+            panic!("Cannot convert file inode into Kosmora directory inode!");
+        }
+
+        KosmoraDirectory {
+            name: self.file_name().unwrap().to_string_lossy().into(),
+            parent: None,
+            children: None,
+        }
+    }
+
+    fn to_kosmora_file(&self) -> KosmoraFile {
+        if !self.is_file() {
+            panic!("Cannot convert directory inode into Kosmora file inode!")
+        }
+
+        KosmoraFile {
+            metadata: KosmoraFileMetadata {
+                name: self.file_name().unwrap().to_string_lossy().into(),
                 extension: Some(
                     self.file_name()
                         .unwrap()
@@ -156,20 +121,21 @@ impl KosmoraINodeInteroperable for std::path::Path {
                         .split(".")
                         .last()
                         .unwrap()
-                        .to_string(),
+                        .into(),
                 ),
-                size: meta.len() as usize,
-            };
-
-            let file = KosmoraFile {
-                metadata: file_metadata,
-                data: std::fs::read(self).unwrap(),
-            };
-
-            return KosmoraINode {
-                inode: KosmoraINodeType::File(file),
-            };
+                size: self.metadata().unwrap().len() as usize,
+            },
+            data: fs::read(self).unwrap(),
         }
-        panic!("Unsupported path type");
+    }
+}
+
+impl KosmoraDirectory {
+    fn with_children(&self, children: Vec<KosmoraINode>) -> KosmoraDirectory {
+        KosmoraDirectory {
+            name: self.name.clone(),
+            parent: self.parent.clone(),
+            children: Some(children),
+        }
     }
 }
