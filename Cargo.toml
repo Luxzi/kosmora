@@ -1,6 +1,12 @@
 [package]
 name = "kosmora"
 version = "0.1.0"
+authors = ["Lily Vex <luxzi@pm.me>", "Caznix <caznix01@gmail.com>"]
+description = "A Read-Only Virtual Filesystem for Game Assets"
+repository = "https://github.com/Luxzi/kosmora"
+readme = "README.md"
+keywords = ["vfs", "virtual filesystem"]
+license = "BSD-3-Clause"
 edition = "2024"
 
 [dependencies]
