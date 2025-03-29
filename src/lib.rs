@@ -5,9 +5,14 @@ use walkdir::{DirEntry, WalkDir};
 mod tree;
 
 #[derive(Debug)]
-pub struct KosmoraVfs {
+pub struct KosmoraVfsBuilder {
     index: KosmoraIndex,
     packages: Vec<KosmoraPackage>,
+}
+
+#[derive(Debug)]
+pub struct KosmoraVfs {
+    builder: KosmoraVfsBuilder
 }
 
 #[derive(Debug)]
@@ -22,50 +27,62 @@ struct KosmoraPackage {
 }
 
 #[derive(Debug, Clone)]
-pub enum KosmoraINodeType {
+pub(crate) enum KosmoraINodeType {
     File(KosmoraFile),
     Directory(KosmoraDirectory),
 }
 
 #[derive(Debug, Clone)]
-pub struct KosmoraFileMetadata {
+pub(crate) struct KosmoraFileMetadata {
     name: String,
     extension: Option<String>,
     size: usize,
 }
 
 #[derive(Debug, Clone)]
-pub struct KosmoraFile {
+pub(crate) struct KosmoraFile {
     metadata: KosmoraFileMetadata,
     data: Vec<u8>,
 }
 
 #[derive(Debug, Clone)]
-pub struct KosmoraDirectory {
+pub(crate) struct KosmoraDirectory {
     name: String,
     parent: Option<Box<KosmoraDirectory>>,
     children: Option<Vec<KosmoraINode>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct KosmoraINode {
+pub(crate) struct KosmoraINode {
     inode: KosmoraINodeType,
 }
 
-impl KosmoraVfs {
+impl KosmoraVfsBuilder {
     pub fn new() -> Self {
-        KosmoraVfs {
-            index: KosmoraIndex { index: Vec::new() },
-            packages: Vec::new(),
+        KosmoraVfsBuilder {
+            index: KosmoraIndex { index: vec![] },
+            packages: vec![],
         }
     }
 
-    pub fn create_directory(virtual_path: &str) {}
-    pub fn add_directory(real_path: &str, virtual_path: &str) {}
-    pub fn add_file(real_path: &str, virtual_path: &str) {}
+    pub fn new_directory(&mut self, virtual_path: &str) -> Self {
+        todo!()
+    }
+
+    pub fn add_directory(&mut self, physical_path: &str, virtual_path: &str) -> Self {
+        todo!()
+    }
+
+    pub fn add_file(&mut self, physical_path: &str, virtual_path: &str) -> Self {
+        todo!()
+    }
+
+    pub fn build(&mut self) {
+        todo!()
+    }
 }
 
-pub trait KosmoraINodeInteroperable {
+pub(crate) trait KosmoraINodeInteroperable {
     fn collect_directory_children(&self) -> Vec<KosmoraINode>;
     fn to_kosmora_inode(&self) -> KosmoraINode;
     fn to_kosmora_directory(&self) -> KosmoraDirectory;
