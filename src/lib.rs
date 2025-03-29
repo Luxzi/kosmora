@@ -65,15 +65,15 @@ impl KosmoraVfsBuilder {
         }
     }
 
-    pub fn new_directory(&mut self, virtual_path: &str) -> Self {
+    pub fn new_directory<T: KosmoraINodeInteroperable>(&mut self, virtual_path: T) -> Self {
         todo!()
     }
 
-    pub fn add_directory(&mut self, physical_path: &str, virtual_path: &str) -> Self {
+    pub fn add_directory<T: KosmoraINodeInteroperable>(&mut self, physical_path: T, virtual_path: T) -> Self {
         todo!()
     }
 
-    pub fn add_file(&mut self, physical_path: &str, virtual_path: &str) -> Self {
+    pub fn add_file<T: KosmoraINodeInteroperable>(&mut self, physical_path: T, virtual_path: T) -> Self {
         todo!()
     }
 
