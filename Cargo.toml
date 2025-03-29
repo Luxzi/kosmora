@@ -1,22 +1,11 @@
-[workspace]
-resolver = "2"
-members = ["consumer", "kosmora"]
+[package]
+name = "kosmora"
+version = "0.1.0"
+edition = "2024"
 
-[profile.dev]
-rpath = false
-panic = "abort"
-lto = "off"
-opt-level = 0
-debug = true
-overflow-checks = false
-incremental = true
-codegen-units = 128
+[dependencies]
+walkdir = "2.5.0"
 
-strip = "symbols"
-debug-assertions = true
-
-[profile.release]
-debug-assertions = false
-lto = true
-codegen-units = 1
-panic = "abort"
+[lints.rust]
+missing_docs = "allow"
+unused = "allow"
