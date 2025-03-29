@@ -1,50 +1,50 @@
 use std::{boxed::Box, fs, io::Seek, path, vec};
-
 use walkdir::WalkDir;
-#[derive(Debug)]
 
+#[derive(Debug)]
 pub struct KosmoraVfs {
     index: KosmoraIndex,
     packages: Vec<KosmoraPackage>,
 }
-#[derive(Debug)]
 
+#[derive(Debug)]
 struct KosmoraIndex {
     index: Vec<KosmoraPackage>,
 }
-#[derive(Debug)]
 
+#[derive(Debug)]
 struct KosmoraPackage {
     id: usize,
     inode_index: KosmoraDirectory,
 }
-#[derive(Debug)]
 
+#[derive(Debug)]
 pub enum KosmoraINodeType {
     File(KosmoraFile),
     Directory(KosmoraDirectory),
 }
-#[derive(Debug)]
 
+#[derive(Debug)]
 pub struct KosmoraFileMetadata {
     name: String,
     extension: Option<String>,
     size: usize,
 }
-#[derive(Debug)]
 
+#[derive(Debug)]
 pub struct KosmoraFile {
     metadata: KosmoraFileMetadata,
     data: Vec<u8>,
 }
+
 #[derive(Debug)]
 pub struct KosmoraDirectory {
     name: String,
     parent: Option<Box<KosmoraDirectory>>,
     children: Option<Vec<KosmoraINode>>,
 }
-#[derive(Debug)]
 
+#[derive(Debug)]
 pub struct KosmoraINode {
     inode: KosmoraINodeType,
 }
