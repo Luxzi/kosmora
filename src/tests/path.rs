@@ -1,5 +1,5 @@
+use crate::path::{KosmoraPath, KosmoraPathBuf, PathComponent};
 use pretty_assertions::assert_eq;
-use crate::path::{KosmoraPathBuf, KosmoraPath, PathComponent};
 
 #[test]
 fn test_absolute_path_components() {
@@ -44,10 +44,10 @@ fn test_special_path_components() {
             ];
             assert!(!path.is_absolute);
             assert_eq!(path.components, expected_components);
-        },
+        }
         Err(e) => {
             panic!("{e}")
-        },
+        }
     }
 }
 
@@ -68,10 +68,10 @@ fn test_invalid_path() {
     match KosmoraPathBuf::from_str(input) {
         Ok(path) => {
             panic!("Expected an error but got path: {path}");
-        },
+        }
         Err(e) => {
             println!("{e}");
             println!("You passed, congratulations")
-        },
+        }
     }
 }

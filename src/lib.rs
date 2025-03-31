@@ -17,7 +17,6 @@ mod path;
 #[cfg(test)]
 mod tests;
 
-
 #[derive(Debug)]
 pub struct KosmoraFs {
     root: Rc<KosmoraINode>,
@@ -111,15 +110,15 @@ pub struct Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}: {}", self.label, self.kind)?;
-        
+
         if let Some(ref details) = self.msg {
             writeln!(f, "\tDetails: {}", details)?;
         }
-        
+
         if let Some(ref src) = self.source {
             writeln!(f, "\tCaused by: {}", src)?;
         }
-        
+
         Ok(())
     }
 }
@@ -132,4 +131,69 @@ enum ErrorKind {
     IoError(#[from] std::io::Error),
     #[error("The path you entered was invalid.")]
     InvalidPath,
+}
+impl Error {
+    pub(crate) fn new(kind: ErrorKind) -> Self {
+        let default_msg = kind.to_string();
+        let label = match &kind {
+            ErrorKind::IoError(e) => format!("{e}"),
+            ErrorKind::InvalidPath => "Invalid Path".to_string(),
+        };
+
+        Self {
+            kind,
+            label,
+            msg: Some(default_msg),
+            source: None,
+        }
+    }
+
+    pub(crate) fn with_message<S: Into<String>>(mut self, message: S) -> Self {
+        self.msg = Some(message.into());
+        self
+    }
+
+    pub(crate) fn with_source(mut self, source: Error) -> Self {
+        self.source = Some(Box::new(source));
+        self
+    }
+    pub fn pretty_print(&self) {
+        Self::print_error(self, 0, true);
+    }
+
+    fn print_error(err: &Error, level: usize, is_last: bool) {
+        let red = "\x1b[31m";
+        let blue = "\x1b[34m";
+        let yellow = "\x1b[33m";
+        let reset = "\x1b[0m";
+
+        let indent = if level > 0 {
+            "   ".repeat(level - 1)
+        } else {
+            String::new()
+        };
+        let branch = if level > 0 {
+            if is_last { "└── " } else { "├── " }
+        } else {
+            ""
+        };
+
+        println!(
+            "{}{}{}{}{}: {}{}{}",
+            indent, branch, red, err.label, reset, blue, err.kind, reset
+        );
+
+        // Print the details if available
+        if let Some(ref details) = err.msg {
+            println!(
+                "{}    {}Details: {}{}{}",
+                indent, "", yellow, details, reset
+            );
+        }
+
+        if let Some(ref source) = err.source {
+            println!("{}    Caused by:", indent);
+            Self::print_error(source, level + 1, true);
+        }
+    }
 }

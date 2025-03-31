@@ -1,4 +1,10 @@
-use std::{fmt::{format, Display}, io::BufRead, ops::Deref, path::PathBuf, str::FromStr};
+use std::{
+    fmt::{Display, format},
+    io::BufRead,
+    ops::Deref,
+    path::PathBuf,
+    str::FromStr,
+};
 
 #[derive(Debug, PartialEq, Default)]
 pub struct KosmoraPathBuf {
@@ -46,6 +52,19 @@ impl<'path> std::fmt::Display for KosmoraPath<'path> {
     }
 }
 
+impl Into<std::path::PathBuf> for KosmoraPathBuf {
+    fn into(self) -> std::path::PathBuf {
+        PathBuf::from_str(&format!("{self}")).unwrap()
+        // todo!()
+    }
+}
+
+impl<'path> Into<&'path std::path::Path> for KosmoraPath<'path> {
+    fn into(self) -> &'path std::path::Path {
+        todo!()
+    }
+}
+
 impl KosmoraPathBuf {
     pub fn new() -> Self {
         Self::default()
@@ -55,8 +74,7 @@ impl KosmoraPathBuf {
         KosmoraPath { buf: &self }
     }
 
-    pub fn from_str<S: AsRef<str>>(path: S) -> Result<Self,crate::Error> {
-
+    pub fn from_str<S: AsRef<str>>(path: S) -> Result<Self, crate::Error> {
         let path_str = path.as_ref();
         let components: Vec<&str> = path_str.split(|c| c == '/' || c == '\\').collect();
         let is_absolute = components.first().map(|&s| s.is_empty()).unwrap_or(false);
@@ -68,25 +86,27 @@ impl KosmoraPathBuf {
         let mut invalid_chars = Vec::new();
         for part in components.into_iter().skip(if is_absolute { 1 } else { 0 }) {
             if part.is_empty() {
-            continue;
+                continue;
             }
             for c in part.chars() {
-            if matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|' ) && !invalid_chars.contains(&c) {
-                invalid_chars.push(c);
-            }
+                if matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|' | '/' | '\\')
+                    && !invalid_chars.contains(&c)
+                {
+                    invalid_chars.push(c);
+                }
             }
             parsed.push(match part {
-            "." => PathComponent::Current,
-            ".." => PathComponent::Parent,
-            _ => PathComponent::Ident(part.to_string()),
+                "." => PathComponent::Current,
+                ".." => PathComponent::Parent,
+                _ => PathComponent::Ident(part.to_string()),
             });
         }
         if !invalid_chars.is_empty() {
             let err = crate::Error {
-            kind: crate::ErrorKind::InvalidPath,
-            label: "The inputted path contains invalid characters".to_string(),
-            msg: Some(format!("Invalid characters found: {:?}", invalid_chars)),
-            source: None,
+                kind: crate::ErrorKind::InvalidPath,
+                label: "The inputted path contains invalid characters".to_string(),
+                msg: Some(format!("Invalid characters found: {:?}", invalid_chars)),
+                source: None,
             };
             return Err(err);
         }
