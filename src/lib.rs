@@ -1,158 +1,135 @@
-use std::{boxed::Box, fs, io::Seek, path, vec};
-use tree::{collect_physical_directory_children, create_kosmora_directory, create_kosmora_file};
-use walkdir::{DirEntry, WalkDir};
+use core::error;
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    fs::File,
+    hash::Hash,
+    rc::{Rc, Weak},
+    sync::RwLock,
+    time::SystemTime,
+};
 
-mod tree;
+use thiserror::Error;
+use uuid::Uuid;
 
-#[derive(Debug)]
-pub struct KosmoraVfsBuilder {
-    index: KosmoraIndex,
-    packages: Vec<KosmoraPackage>,
-}
+mod fs;
+mod path;
+#[cfg(test)]
+mod tests;
 
-#[derive(Debug)]
-pub struct KosmoraVfs {
-    builder: KosmoraVfsBuilder
-}
-
-#[derive(Debug)]
-struct KosmoraIndex {
-    index: Vec<KosmoraPackage>,
-}
 
 #[derive(Debug)]
-struct KosmoraPackage {
-    id: usize,
-    inode_index: KosmoraDirectory,
+pub struct KosmoraFs {
+    root: Rc<KosmoraINode>,
+    inodes: RefCell<HashMap<Uuid, Rc<KosmoraINode>>>,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) enum KosmoraINodeType {
-    File(KosmoraFile),
-    Directory(KosmoraDirectory),
+pub struct KosmoraFsBuilder {}
+pub struct KosmoraPackageBuilder {}
+
+impl KosmoraFsBuilder {
+    fn build(self) -> KosmoraFs {
+        todo!()
+    }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct KosmoraFileMetadata {
-    name: String,
-    extension: Option<String>,
-    size: usize,
+impl KosmoraFs {}
+
+pub struct KosmoraMountPoint;
+pub struct KosmoraPackage {
+    root: Rc<KosmoraINode>,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct KosmoraFile {
-    metadata: KosmoraFileMetadata,
-    data: Vec<u8>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct KosmoraDirectory {
-    name: String,
-    parent: Option<Box<KosmoraDirectory>>,
-    children: Option<Vec<KosmoraINode>>,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct KosmoraINode {
-    inode: KosmoraINodeType,
+    inode_type: KosmoraINodeType,
+    uuid: Uuid,
+    size: u64,
+    link_count: u16,
+    metadata: Option<INodeMetadata>,
+    content: RwLock<INodeContent>,
+    parent: RefCell<Weak<KosmoraINode>>,
 }
 
-impl KosmoraVfsBuilder {
-    pub fn new() -> Self {
-        KosmoraVfsBuilder {
-            index: KosmoraIndex { index: vec![] },
-            packages: vec![],
+#[derive(Debug)]
+enum INodeContent {
+    File(Vec<u8>),
+    Directory(HashMap<String, Uuid>),
+}
+
+#[derive(Debug)]
+struct INodeMetadata {
+    created_time: SystemTime,
+    modified_time: SystemTime,
+    accessed_at: SystemTime,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum KosmoraINodeType {
+    File,
+    Directory,
+}
+
+impl KosmoraINodeType {
+    pub const FILE: Self = KosmoraINodeType::File;
+    pub const DIRECTORY: Self = KosmoraINodeType::Directory;
+
+    fn is_file(&self) -> bool {
+        if self != &Self::FILE {
+            return false;
         }
+
+        true
     }
 
-    pub fn new_directory<T: KosmoraINodeInteroperable>(&mut self, virtual_path: T) -> Self {
-        todo!()
-    }
-
-    pub fn add_directory<T: KosmoraINodeInteroperable>(&mut self, physical_path: T, virtual_path: T) -> Self {
-        todo!()
-    }
-
-    pub fn add_file<T: KosmoraINodeInteroperable>(&mut self, physical_path: T, virtual_path: T) -> Self {
-        todo!()
-    }
-
-    pub fn build(&mut self) {
-        todo!()
+    fn is_directory(&self) -> bool {
+        !self.is_file()
     }
 }
 
-pub(crate) trait KosmoraINodeInteroperable {
-    fn collect_directory_children(&self) -> Vec<KosmoraINode>;
-    fn to_kosmora_inode(&self) -> KosmoraINode;
-    fn to_kosmora_directory(&self) -> KosmoraDirectory;
-    fn to_kosmora_file(&self) -> KosmoraFile;
+impl std::fmt::Display for KosmoraINodeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                KosmoraINodeType::File => "File",
+                KosmoraINodeType::Directory => "Directory",
+            }
+        )
+    }
 }
 
-impl KosmoraINodeInteroperable for std::path::Path {
-    fn collect_directory_children(&self) -> Vec<KosmoraINode> {
-        tree::collect_physical_directory_children(self)
-    }
+#[derive(Debug, Error)]
+pub struct Error {
+    kind: ErrorKind,
+    label: String,
+    msg: Option<String>,
+    source: Option<Box<Error>>,
+}
 
-    fn to_kosmora_inode(&self) -> KosmoraINode {
-        if !self.exists() {
-            panic!("Path does not exist");
-        }
-
-        if self.is_dir() {
-            return create_kosmora_directory(self, None, Some(collect_physical_directory_children(self)));
-        }
-
-        if self.is_file() {
-            return create_kosmora_file(self, Some(Box::new(self.parent().unwrap().to_kosmora_directory())));
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}: {}", self.label, self.kind)?;
+        
+        if let Some(ref details) = self.msg {
+            writeln!(f, "\tDetails: {}", details)?;
         }
         
-        panic!("Unsupported path type");
-    }
-
-    fn to_kosmora_directory(&self) -> KosmoraDirectory {
-        if !self.is_dir() {
-            panic!("Cannot convert file inode into Kosmora directory inode!");
+        if let Some(ref src) = self.source {
+            writeln!(f, "\tCaused by: {}", src)?;
         }
-
-        KosmoraDirectory {
-            name: self.file_name().unwrap().to_string_lossy().into(),
-            parent: None,
-            children: None,
-        }
-    }
-
-    fn to_kosmora_file(&self) -> KosmoraFile {
-        if !self.is_file() {
-            panic!("Cannot convert directory inode into Kosmora file inode!")
-        }
-
-        KosmoraFile {
-            metadata: KosmoraFileMetadata {
-                name: self.file_name().unwrap().to_string_lossy().into(),
-                extension: Some(
-                    self.file_name()
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
-                        .split(".")
-                        .last()
-                        .unwrap()
-                        .into(),
-                ),
-                size: self.metadata().unwrap().len() as usize,
-            },
-            data: fs::read(self).unwrap(),
-        }
+        
+        Ok(())
     }
 }
 
-impl KosmoraDirectory {
-    fn with_children(&self, children: Vec<KosmoraINode>) -> KosmoraDirectory {
-        KosmoraDirectory {
-            name: self.name.clone(),
-            parent: self.parent.clone(),
-            children: Some(children),
-        }
-    }
+#[derive(Debug, Error)]
+#[error(transparent)]
+#[non_exhaustive]
+enum ErrorKind {
+    #[error("{0}")]
+    IoError(#[from] std::io::Error),
+    #[error("The path you entered was invalid.")]
+    InvalidPath,
 }
