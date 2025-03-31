@@ -38,6 +38,12 @@ fn format_path_components<S: AsRef<str> + ToString + Display>(
     output_string
 }
 
+impl From<KosmoraPathBuf> for std::path::PathBuf {
+    fn from(value: KosmoraPathBuf) -> Self {
+       PathBuf::from_str(&format_path_components(&value.components)).unwrap()
+    }
+}
+
 impl std::fmt::Display for KosmoraPathBuf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut output_string = format_path_components(&self.components);
@@ -117,6 +123,7 @@ impl KosmoraPathBuf {
         })
     }
 }
+
 #[derive(Debug, PartialEq)]
 pub struct KosmoraPath<'path> {
     buf: &'path KosmoraPathBuf,
